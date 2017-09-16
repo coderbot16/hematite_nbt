@@ -3,9 +3,19 @@ use std::io;
 use serde;
 use serde::ser;
 
-use nbt::raw;
+use byteorder::{BigEndian, WriteBytesExt};
 
 use error::{Error, Result};
+
+const END: i8 = 0x00;
+
+// TODO: Replace with a Trait on Write.
+#[inline]
+fn write_bare_string<W>(dst: &mut W, value: &str) -> Result<()> where W: io::Write
+{    
+    dst.write_u16::<BigEndian>(value.len() as u16)?;
+    dst.write_all(value.as_bytes()).map_err(From::from)
+}
 
 /// Encode `value` in Named Binary Tag format to the given `io::Write`
 /// destination, with an optional header.
@@ -46,12 +56,10 @@ impl<'a, W> Encoder<'a, W> where W: io::Write {
     /// Write the NBT tag and an optional header to the underlying writer.
     #[inline]
     fn write_header(&mut self, tag: i8, header: Option<&str>) -> Result<()> {
-        try!(raw::write_bare_byte(&mut self.writer, tag));
+        self.writer.write_i8(tag)?;
         match header {
-            None =>
-                raw::write_bare_short(&mut self.writer, 0).map_err(From::from),
-            Some(h) =>
-                raw::write_bare_string(&mut self.writer, h).map_err(From::from),
+            None    => self.writer.write_i16::<BigEndian>(0).map_err(From::from),
+            Some(h) => write_bare_string(&mut self.writer, h).map_err(From::from)
         }
     }
 }
@@ -75,8 +83,8 @@ impl<'a, 'b, W> InnerEncoder<'a, 'b, W> where W: io::Write {
             State::Bare          => Ok(()),
             State::Named(header) => self.outer.write_header(tag, Some(header)),
             State::ListHead(s)   => {
-                try!(raw::write_bare_byte(&mut self.outer.writer, tag));
-                try!(raw::write_bare_int(&mut self.outer.writer, s as i32));
+                self.outer.writer.write_i8(tag)?;
+                self.outer.writer.write_i32::<BigEndian>(s as i32)?;
                 self.state = State::Bare;
                 Ok(())
             }
@@ -103,7 +111,7 @@ impl<'a, 'b, W> ser::SerializeSeq for Compound<'a, 'b, W>
             outer: self.outer,
             state: self.state.clone()
         };
-        try!(value.serialize(&mut ser));
+        value.serialize(&mut ser)?;
         self.state = State::Bare;
         Ok(())
     }
@@ -130,7 +138,7 @@ impl<'a, 'b, W> ser::SerializeStruct for Compound<'a, 'b, W>
     }
 
     fn end(self) -> Result<()> {
-        raw::close_nbt(&mut self.outer.writer).map_err(From::from)
+        self.outer.writer.write_i8(END).map_err(From::from)
     }
 }
 
@@ -155,8 +163,8 @@ impl<'a, 'b, W> serde::Serializer for &'a mut Encoder<'b, W> where W: io::Write 
     #[inline]
     fn serialize_unit_struct(self, _name: &'static str) -> Result<()> {
         let header = self.header; // Circumvent strange borrowing errors.
-        try!(self.write_header(0x0a, header));
-        raw::close_nbt(&mut self.writer).map_err(From::from)
+        self.write_header(0x0a, header)?;
+        self.writer.write_i8(END).map_err(From::from)
     }
 
     /// Serialize newtype structs by their underlying type. Note that this will
@@ -182,7 +190,7 @@ impl<'a, 'b, W> serde::Serializer for &'a mut Encoder<'b, W> where W: io::Write 
                         -> Result<Self::SerializeStruct>
     {
         let header = self.header; // Circumvent strange borrowing errors.
-        try!(self.write_header(0x0a, header));
+        self.write_header(0x0a, header)?;
         Ok(Compound { outer: self, state: State::Bare })
     }
 }
@@ -205,30 +213,26 @@ impl<'a, 'b, W> serde::Serializer for &'a mut InnerEncoder<'a, 'b, W> where W: i
 
     #[inline]
     fn serialize_i8(self, value: i8) -> Result<()> {
-        try!(self.write_header(0x01));
-        raw::write_bare_byte(&mut self.outer.writer, value)
-            .map_err(From::from)
+        self.write_header(0x01)?;
+        self.outer.writer.write_i8(value).map_err(From::from)
     }
 
     #[inline]
     fn serialize_i16(self, value: i16) -> Result<()> {
-        try!(self.write_header(0x02));
-        raw::write_bare_short(&mut self.outer.writer, value)
-            .map_err(From::from)
+        self.write_header(0x02)?;
+        self.outer.writer.write_i16::<BigEndian>(value).map_err(From::from)
     }
 
     #[inline]
     fn serialize_i32(self, value: i32) -> Result<()> {
-        try!(self.write_header(0x03));
-        raw::write_bare_int(&mut self.outer.writer, value)
-            .map_err(From::from)
+        self.write_header(0x03)?;
+        self.outer.writer.write_i32::<BigEndian>(value).map_err(From::from)
     }
 
     #[inline]
     fn serialize_i64(self, value: i64) -> Result<()> {
-        try!(self.write_header(0x04));
-        raw::write_bare_long(&mut self.outer.writer, value)
-            .map_err(From::from)
+        self.write_header(0x04)?;
+        self.outer.writer.write_i64::<BigEndian>(value).map_err(From::from)
     }
 
     #[inline]
@@ -253,16 +257,14 @@ impl<'a, 'b, W> serde::Serializer for &'a mut InnerEncoder<'a, 'b, W> where W: i
 
     #[inline]
     fn serialize_f32(self, value: f32) -> Result<()> {
-        try!(self.write_header(0x05));
-        raw::write_bare_float(&mut self.outer.writer, value)
-            .map_err(From::from)
+        self.write_header(0x05)?;
+        self.outer.writer.write_f32::<BigEndian>(value).map_err(From::from)
     }
 
     #[inline]
     fn serialize_f64(self, value: f64) -> Result<()> {
-        try!(self.write_header(0x06));
-        raw::write_bare_double(&mut self.outer.writer, value)
-            .map_err(From::from)
+        self.write_header(0x06)?;
+        self.outer.writer.write_f64::<BigEndian>(value).map_err(From::from)
     }
 
     #[inline]
@@ -272,9 +274,8 @@ impl<'a, 'b, W> serde::Serializer for &'a mut InnerEncoder<'a, 'b, W> where W: i
 
     #[inline]
     fn serialize_str(self, value: &str) -> Result<()> {
-        try!(self.write_header(0x08));
-        raw::write_bare_string(&mut self.outer.writer, value)
-            .map_err(From::from)
+        self.write_header(0x08)?;
+        write_bare_string(&mut self.outer.writer, value).map_err(From::from)
     }
 
     #[inline]
@@ -301,8 +302,8 @@ impl<'a, 'b, W> serde::Serializer for &'a mut InnerEncoder<'a, 'b, W> where W: i
 
     #[inline]
     fn serialize_unit_struct(self, _name: &'static str) -> Result<()> {
-        try!(self.write_header(0x0a));
-        raw::close_nbt(&mut self.outer.writer).map_err(From::from)
+        self.write_header(0x0a)?;
+        self.outer.writer.write_i8(END).map_err(From::from)
     }
 
     #[inline]
@@ -333,7 +334,7 @@ impl<'a, 'b, W> serde::Serializer for &'a mut InnerEncoder<'a, 'b, W> where W: i
     #[inline]
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
         if let Some(l) = len {
-            try!(self.write_header(0x09));
+            self.write_header(0x09)?;
             Ok(Compound { outer: self.outer, state: State::ListHead(l) })
         } else {
             Err(Error::UnrepresentableType("unsized list"))
@@ -343,7 +344,7 @@ impl<'a, 'b, W> serde::Serializer for &'a mut InnerEncoder<'a, 'b, W> where W: i
     #[inline]
     fn serialize_seq_fixed_size(self, len: usize) -> Result<Self::SerializeSeq>
     {
-        try!(self.write_header(0x09));
+        self.write_header(0x09)?;
         Ok(Compound { outer: self.outer, state: State::ListHead(len) })
     }
 
@@ -376,7 +377,7 @@ impl<'a, 'b, W> serde::Serializer for &'a mut InnerEncoder<'a, 'b, W> where W: i
     fn serialize_struct(self, _name: &'static str, _len: usize)
                         -> Result<Self::SerializeStruct>
     {
-        try!(self.write_header(0x0a));
+        self.write_header(0x0a)?;
         Ok(Compound { outer: self.outer, state: State::Bare })
     }
 

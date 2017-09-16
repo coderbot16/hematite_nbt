@@ -2,7 +2,6 @@
 extern crate serde_derive;
 extern crate serde;
 
-extern crate nbt;
 extern crate nbt_serde;
 
 use nbt_serde::error::{Error, Result};
@@ -43,9 +42,7 @@ fn incomplete_nbt() {
 
     assert!(read.is_err());
     match read.unwrap_err() {
-        Error::Nbt(err) =>
-            assert_eq!(err.to_string(),
-                       "data does not represent a complete NbtValue"),
+        Error::IncompleteNbtValue => (),
         _ => panic!("encountered an unexpected error"),
     }
 }

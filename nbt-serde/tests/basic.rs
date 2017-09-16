@@ -2,7 +2,6 @@
 extern crate serde_derive;
 extern crate serde;
 
-extern crate nbt;
 extern crate nbt_serde;
 
 use std::collections::HashMap;
