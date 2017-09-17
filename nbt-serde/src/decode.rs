@@ -6,6 +6,7 @@ use flate2::read;
 use byteorder::{BigEndian, ReadBytesExt};
 
 use error::{Error, Result};
+use kind::Kind;
 
 #[inline]
 fn read_bare_string<R>(src: &mut R) -> Result<String> where R: io::Read
@@ -273,7 +274,10 @@ impl<'a, 'b: 'a, R: io::Read> de::Deserializer for &'b mut InnerDecoder<'a, R> {
                     b => Err(Error::NonBooleanByte(b)),
                 }
             },
-            _ => Err(Error::UnexpectedTag(self.tag, 0x01)),
+            _ => match Kind::from_id(self.tag as i8) {
+	            Some(kind) => Err(Error::UnexpectedTag(kind, Kind::I8)),
+	            None => Err(Error::UnknownTag(self.tag))
+            }
         }
     }
 

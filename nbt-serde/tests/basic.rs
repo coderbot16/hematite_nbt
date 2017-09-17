@@ -218,13 +218,13 @@ fn serialize_basic_list() {
     let mut dst = Vec::new();
     to_writer(&mut dst, &nbt, None).unwrap();
 
-    let bytes = vec![
+
+	let bytes = vec![
         0x0a,
             0x00, 0x00,
-            0x09,
+            0x07,
                 0x00, 0x04,
                 0x64, 0x61, 0x74, 0x61,
-                0x01, // List type.
                 0x00, 0x00, 0x00, 0x03, // Length.
                 0x01, 0x02, 0x03, // Content.
         0x00

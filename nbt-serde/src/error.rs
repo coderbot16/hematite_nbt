@@ -5,10 +5,10 @@ use std::result;
 use std::string;
 
 use serde;
+use kind::Kind;
 
 pub type Result<T> = result::Result<T, Error>;
 
-// TODO: HeterogenousList
 #[derive(Debug)]
 pub enum Error {
     Io(io::Error),
@@ -16,10 +16,11 @@ pub enum Error {
     NoRootCompound,
     UnknownTag(u8),
     NonBooleanByte(i8),
-    UnexpectedTag(u8, u8),
+    UnexpectedTag(Kind, Kind),
     UnrepresentableType(&'static str),
     InvalidUtf8,
-    IncompleteNbtValue
+    IncompleteNbtValue,
+    HeterogenousList { original: Kind, new: Kind }
 }
 
 impl fmt::Display for Error {
@@ -37,13 +38,14 @@ impl fmt::Display for Error {
                 write!(f, "boolean bytes must be 0 or 1, found {}", b)
             },
             Error::UnexpectedTag(a, b) => {
-                write!(f, "unexpected tag: {}, expecting: {}", a, b)
+                write!(f, "unexpected tag: {:?}, expecting: {:?}", a, b)
             },
             Error::UnrepresentableType(t) => {
                 write!(f, "cannot represent {} in NBT format", t)
             },
             Error::InvalidUtf8 => write!(f, "a string is not valid UTF-8"),
-            Error::IncompleteNbtValue => write!(f, "data does not represent a complete NbtValue")
+            Error::IncompleteNbtValue => write!(f, "data does not represent a complete NbtValue"),
+            Error::HeterogenousList { original, new} => write!(f, "A list may only contain 1 type of tags: already contained {:?}, but tried to insert {:?}", original, new),
         }
     }
 }
@@ -76,7 +78,8 @@ impl error::Error for Error {
             Error::UnexpectedTag(_, _) => "unexpected tag",
             Error::UnrepresentableType(_) => "unrepresentable type",
             Error::InvalidUtf8 => "a string is not valid UTF-8",
-            Error::IncompleteNbtValue => "data does not represent a complete NbtValue"
+            Error::IncompleteNbtValue => "data does not represent a complete NbtValue",
+            Error::HeterogenousList { .. } => "A list may only contain 1 type of tags"
         }
     }
 }

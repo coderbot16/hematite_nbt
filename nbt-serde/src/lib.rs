@@ -11,3 +11,4 @@ pub use decode::Decoder;
 pub mod error;
 pub mod encode;
 pub mod decode;
+pub mod kind;
