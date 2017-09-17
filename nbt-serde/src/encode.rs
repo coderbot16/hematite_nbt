@@ -80,7 +80,10 @@ impl<W> Encoder<W> where W: io::Write {
 
     /// Create an encoder with optional `header` from a given Writer.
     pub fn new(writer: W, header: Option<String>) -> Self {
-        Encoder { writer: writer, states: vec![LevelState::InNamed { name: Some(header.unwrap_or_else(|| "".to_string())) }] }
+    	let mut states = Vec::with_capacity(32);
+    	states.push(LevelState::InNamed { name: Some(header.unwrap_or_else(|| "".to_string())) });
+    	
+        Encoder { writer, states }
     }
 
     /// Consume this encoder and return the underlying writer.
