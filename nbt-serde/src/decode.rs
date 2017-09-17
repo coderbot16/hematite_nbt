@@ -204,6 +204,12 @@ impl<'a, R> SeqDecoder<'a, R> where R: io::Read {
         Ok(SeqDecoder { outer: outer, tag: 0x03, length: length,
                         current: 0 })
     }
+    
+    fn long_array(outer: &'a mut Decoder<R>) -> Result<Self> {
+        let length = outer.reader.read_i32::<BigEndian>()?;
+        Ok(SeqDecoder { outer: outer, tag: 0x04, length: length,
+                        current: 0 })
+    }
 }
 
 impl<'a, R: io::Read + 'a> de::SeqVisitor for SeqDecoder<'a, R> {
@@ -256,6 +262,7 @@ impl<'a, 'b: 'a, R: io::Read> de::Deserializer for &'b mut InnerDecoder<'a, R> {
             0x09 => visitor.visit_seq(SeqDecoder::list(outer)?),
             0x0a => visitor.visit_map(MapDecoder::new(outer)),
             0x0b => visitor.visit_seq(SeqDecoder::int_array(outer)?),
+            0x0c => visitor.visit_seq(SeqDecoder::long_array(outer)?),
             t => Err(Error::UnknownTag(t)),
         }
     }
