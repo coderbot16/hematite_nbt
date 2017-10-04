@@ -133,7 +133,7 @@ impl<W> Encoder<W> where W: io::Write {
     					if container == Kind::List {
     						self.writer.write_i8(tag.to_id())?;
     					}
-    					self.writer.write_i32::<BigEndian>(len);
+    					self.writer.write_i32::<BigEndian>(len).map_err(Error::from)?;
     					
     					self.states.push(LevelState::InNamed { name: None });
     					self.states.push(LevelState::InList { kind: tag });
@@ -390,13 +390,15 @@ impl<'a, W> serde::Serializer for &'a mut InnerEncoder<'a, W> where W: io::Write
     }
 
     #[inline]
-    fn serialize_bytes(self, _value: &[u8]) -> Result<()> {
-        Err(Error::UnrepresentableType("u8"))
+    fn serialize_bytes(self, value: &[u8]) -> Result<()> {
+        self.outer.specify_kind(Kind::I8Array)?;
+        self.outer.writer.write_i32::<BigEndian>(value.len() as i32).map_err(Error::from)?;
+        self.outer.writer.write_all(value).map_err(From::from)
     }
 
     #[inline]
     fn serialize_none(self) -> Result<()> {
-    	self.outer.cancel_name();
+    	self.outer.cancel_name()?;
         Ok(())
     }
 
