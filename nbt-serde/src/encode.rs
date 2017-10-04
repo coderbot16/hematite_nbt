@@ -347,23 +347,27 @@ impl<'a, W> serde::Serializer for &'a mut InnerEncoder<'a, W> where W: io::Write
     }
 
     #[inline]
-    fn serialize_u8(self, _value: u8) -> Result<()> {
-        Err(Error::UnrepresentableType("u8"))
+    fn serialize_u8(self, value: u8) -> Result<()> {
+        self.outer.specify_kind(Kind::I8)?;
+        self.outer.writer.write_u8(value).map_err(From::from)
     }
 
     #[inline]
-    fn serialize_u16(self, _value: u16) -> Result<()> {
-        Err(Error::UnrepresentableType("u16"))
+    fn serialize_u16(self, value: u16) -> Result<()> {
+        self.outer.specify_kind(Kind::I16)?;
+        self.outer.writer.write_u16::<BigEndian>(value).map_err(From::from)
     }
 
     #[inline]
-    fn serialize_u32(self, _value: u32) -> Result<()> {
-        Err(Error::UnrepresentableType("u32"))
+    fn serialize_u32(self, value: u32) -> Result<()> {
+        self.outer.specify_kind(Kind::I32)?;
+        self.outer.writer.write_u32::<BigEndian>(value).map_err(From::from)
     }
 
     #[inline]
-    fn serialize_u64(self, _value: u64) -> Result<()> {
-        Err(Error::UnrepresentableType("u64"))
+    fn serialize_u64(self, value: u64) -> Result<()> {
+        self.outer.specify_kind(Kind::I64)?;
+        self.outer.writer.write_u64::<BigEndian>(value).map_err(From::from)
     }
 
     #[inline]
